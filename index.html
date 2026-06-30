@@ -1,0 +1,1487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no">
+<title>PROPAGAN-SCORE</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PROPAGAN SCORE">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Bebas+Neue&display=swap" rel="stylesheet">
+<style>
+*{
+  box-sizing:border-box;margin:0;padding:0;
+  -webkit-tap-highlight-color:transparent;
+  -webkit-touch-callout:none;
+  -webkit-user-select:none;
+  user-select:none;
+}
+
+:root{
+  /* Dark RPG palette */
+  --bg:       #0d0f14;
+  --panel:    #13161e;
+  --surface:  #1a1e2a;
+  --border:   #252b3a;
+  --border2:  #2e3650;
+
+  /* Accent — gold for headings / neutral */
+  --gold:     #c9a84c;
+  --gold-dim: #7a6128;
+  --gold-glow:rgba(201,168,76,0.18);
+
+  /* Count-DOWN mode — electric cyan (also P1's signature color) */
+  --dn-bg:    #060f1f;
+  --dn-text:  #00c8ff;
+  --dn-bright:#40ddff;
+  --dn-pip:   #0a2a4a;
+  --dn-fill:  #0090d0;
+  --dn-glow:  rgba(0,200,255,0.35);
+  --dn-border:#0a2540;
+
+  /* Player 2 signature — electric magenta/purple */
+  --p2-bg:    #150a24;
+  --p2-text:  #d63bff;
+  --p2-bright:#ef6dff;
+  --p2-fill:  #b820d8;
+  --p2-glow:  rgba(214,59,255,0.4);
+  --p2-border:#2a0f45;
+
+  /* KO — red */
+  --ko-fill:  #c0392b;
+  --ko-glow:  rgba(192,57,43,0.5);
+
+  --divider-h: 42px;
+}
+
+html,body{
+  height:100%;width:100%;
+  background:var(--bg);
+  font-family:'Rajdhani',sans-serif;
+  overflow:hidden;
+  touch-action:manipulation;
+  color:#e8e0cc;
+}
+body{
+  display:flex;flex-direction:column;align-items:stretch;
+  padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px)
+          env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px);
+  transition:transform 0.45s cubic-bezier(0.4,0,0.2,1);
+  transform-origin:center center;
+}
+
+/* ══ PLAYER PANEL ══ */
+.player{
+  flex:1;display:flex;flex-direction:column;
+  background:var(--panel);position:relative;overflow:hidden;min-height:0;
+}
+.player.p2{ transform:rotate(180deg); }
+
+/* subtle top-edge highlight */
+.player.p1::before{ content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--gold-dim),transparent);z-index:1; }
+.player.p2::before{ content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--gold-dim),transparent);z-index:1; }
+
+/* ── Flash overlay ── */
+.flash{
+  position:absolute;inset:0;opacity:0;pointer-events:none;z-index:20;
+  transition:opacity .06s;
+}
+.flash.show{ opacity:1; }
+
+/* ── Header ── */
+.p-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:6px 14px 5px;
+  border-bottom:1px solid var(--border);
+  flex-shrink:0;
+  background:linear-gradient(180deg,#1e2230 0%,var(--panel) 100%);
+}
+.p-label{
+  font-family:'Bebas Neue',sans-serif;
+  font-size:16px;letter-spacing:3px;
+  color:var(--gold);
+  text-shadow:0 0 12px var(--gold-glow);
+}
+
+/* ── Row bands ── */
+.row-band{
+  display:flex;flex-shrink:0;
+  border-bottom:1px solid var(--border);
+  min-height:0;
+}
+.row-gdp{ flex:2.8; }
+.row-atk{ flex:1.3; }
+.row-eq { flex:1.2; border-bottom:none; }
+
+/* ══ STAT CELL ══ */
+.stat{
+  flex:1;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:space-between;
+  padding:6px 5px 5px;
+  border-right:1px solid var(--border);
+  min-height:0;overflow:hidden;
+  cursor:pointer;
+  position:relative;
+  background:var(--surface);
+  transition:background 0.25s;
+}
+.stat:last-child{ border-right:none; }
+.stat-gdp{ flex:1;border-right:none;padding:14px 5px 12px; }
+
+/* tap ripple */
+.stat::after{
+  content:'';position:absolute;inset:0;
+  background:rgba(255,255,255,0.06);
+  opacity:0;transition:opacity .15s;pointer-events:none;
+}
+.stat.tapped::after{ opacity:1; }
+
+/* ══ PLAYER SIGNATURE COLORS — applied to every stat cell, LED-saturated ══ */
+
+/* Player 1 — electric cyan */
+.player.p1 .stat{
+  background:var(--dn-bg);
+  border-color:var(--dn-border);
+}
+.player.p1 .stat-label{ color:var(--dn-text); }
+.player.p1 .stat-val{
+  color:var(--dn-bright);
+  text-shadow:
+    0 0 6px var(--dn-glow),
+    0 0 16px var(--dn-glow),
+    0 0 32px var(--dn-glow);
+}
+.player.p1 .pip-track::after{ background:var(--dn-fill); box-shadow:0 0 8px var(--dn-glow); }
+
+/* Player 2 — electric magenta/purple */
+.player.p2 .stat{
+  background:var(--p2-bg);
+  border-color:var(--p2-border);
+}
+.player.p2 .stat-label{ color:var(--p2-text); }
+.player.p2 .stat-val{
+  color:var(--p2-bright);
+  text-shadow:
+    0 0 6px var(--p2-glow),
+    0 0 16px var(--p2-glow),
+    0 0 32px var(--p2-glow);
+}
+.player.p2 .pip-track::after{ background:var(--p2-fill); box-shadow:0 0 8px var(--p2-glow); }
+
+/* unlocked pulse ring — brief confirmation flash on reset */
+.unlock-flash{
+  position:absolute;inset:0;border-radius:0;
+  border:2px solid rgba(0,200,255,0.8);
+  opacity:0;pointer-events:none;z-index:13;
+}
+.unlock-flash.show{
+  animation:unlockPulse 0.4s ease-out;
+}
+@keyframes unlockPulse{
+  0%{ opacity:1; transform:scale(0.94); }
+  100%{ opacity:0; transform:scale(1.02); }
+}
+
+/* ── Label ── */
+.stat-label{
+  font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;
+  color:#5a6080;flex-shrink:0;text-align:center;line-height:1;
+  transition:color .2s;
+}
+.stat-gdp .stat-label{ font-size:13px;letter-spacing:3px; }
+
+/* ── Value ── */
+.stat-val{
+  font-family:'Bebas Neue',sans-serif;
+  font-size:clamp(32px,9vw,58px);
+  color:#e8e0cc;line-height:1;
+  flex:1;display:flex;align-items:center;justify-content:center;
+  transition:transform .1s,color .25s,text-shadow .25s;
+}
+.stat-val.pop{ transform:scale(1.35); }
+.stat-gdp .stat-val{ font-size:clamp(48px,13vw,84px); }
+
+/* ══ DICE BUTTON (sits beside GDP) ══ */
+.dice-btn{
+  flex-shrink:0;
+  width:46px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:4px;
+  margin-left:6px;
+  border:1px solid var(--border2);
+  border-radius:6px;
+  background:var(--surface);
+  cursor:pointer;
+  transition:background .15s,border-color .15s;
+}
+.dice-btn:active{ background:rgba(255,255,255,0.06); }
+.dice-btn svg{ width:20px;height:20px; }
+.dice-btn .dice-btn-label{
+  font-size:7px;font-weight:700;letter-spacing:1px;text-transform:uppercase;
+  color:#5a6080;
+}
+.player.p1 .dice-btn{ border-color:var(--dn-border); }
+.player.p1 .dice-btn svg{ color:var(--dn-bright); }
+.player.p1 .dice-btn .dice-btn-label{ color:var(--dn-text); }
+.player.p2 .dice-btn{ border-color:var(--p2-border); }
+.player.p2 .dice-btn svg{ color:var(--p2-bright); }
+.player.p2 .dice-btn .dice-btn-label{ color:var(--p2-text); }
+
+/* ══ DICE OVERLAY — full panel, slides in over the score board ══ */
+.dice-overlay{
+  position:absolute;inset:0;z-index:30;
+  background:var(--panel);
+  display:flex;flex-direction:column;
+  transform:translateY(100%);
+  transition:transform 0.32s cubic-bezier(0.4,0,0.2,1);
+  pointer-events:none;
+}
+.dice-overlay.open{
+  transform:translateY(0);
+  pointer-events:auto;
+}
+
+/* top bar with back button */
+.dice-topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:7px 10px;
+  border-bottom:1px solid var(--border);
+  flex-shrink:0;
+  background:linear-gradient(180deg,#1e2230 0%,var(--panel) 100%);
+}
+.dice-back-btn{
+  display:flex;align-items:center;gap:5px;
+  background:none;border:1px solid var(--border2);
+  border-radius:5px;padding:4px 9px;cursor:pointer;
+  font-family:'Rajdhani',sans-serif;font-weight:700;font-size:11px;letter-spacing:1px;
+  color:#8a90a8;
+}
+.dice-back-btn svg{ width:13px;height:13px; }
+.dice-title{
+  font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:2px;
+  color:var(--gold);
+}
+
+/* ── Dice roll screen ── */
+.dice-stage{
+  flex:1;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  gap:6px;padding:8px;min-height:0;overflow-y:auto;
+}
+.dice-group-label{
+  font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;
+  color:#5a6080;margin-top:2px;
+}
+.dice-group-label span{ color:#aab0c8;letter-spacing:1px; }
+.dice-row{
+  display:flex;gap:10px;align-items:center;justify-content:center;
+}
+.die-box{
+  width:78px;height:78px;
+  border:3px solid var(--border2);border-radius:11px;
+  background:var(--surface);
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Bebas Neue',sans-serif;
+  cursor:pointer;
+  position:relative;
+  transition:transform .08s;
+}
+.die-box:active{ transform:scale(0.93); }
+.die-box.rolling{ animation:dieShake .35s ease infinite; }
+@keyframes dieShake{
+  0%,100%{ transform:translate(0,0) rotate(0deg); }
+  25%{ transform:translate(-2px,1px) rotate(-3deg); }
+  75%{ transform:translate(2px,-1px) rotate(3deg); }
+}
+.die-box .die-sym{ font-size:36px;line-height:1; }
+.die-box-eq{ width:70px;height:70px; }
+.die-box-eq .die-sym{ font-size:32px; }
+.player.p1 .die-box{ border-color:var(--dn-border); }
+.player.p1 .die-box .die-sym{ filter:drop-shadow(0 0 6px var(--dn-glow)); }
+.player.p2 .die-box{ border-color:var(--p2-border); }
+.player.p2 .die-box .die-sym{ filter:drop-shadow(0 0 6px var(--p2-glow)); }
+
+.dice-roll-btn{
+  padding:9px 24px;border:none;border-radius:8px;
+  font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:2px;
+  cursor:pointer;color:#0a0c10;
+  transition:transform .07s;
+  margin-top:2px;
+}
+.dice-roll-btn:active{ transform:translateY(2px); }
+.player.p1 .dice-roll-btn{ background:var(--dn-bright); box-shadow:0 4px 0 var(--dn-fill); }
+.player.p1 .dice-roll-btn:active{ box-shadow:0 1px 0 var(--dn-fill); }
+.player.p2 .dice-roll-btn{ background:var(--p2-bright); box-shadow:0 4px 0 var(--p2-fill); }
+.player.p2 .dice-roll-btn:active{ box-shadow:0 1px 0 var(--p2-fill); }
+
+/* end-turn banner — shown when both equip dice land on Stop */
+.end-turn-banner{
+  display:none;
+  font-family:'Bebas Neue',sans-serif;
+  font-size:11px;letter-spacing:1px;
+  color:#ff6b6b;
+  border:1px solid #5a2030;
+  background:rgba(192,57,43,0.12);
+  border-radius:6px;
+  padding:4px 10px;
+  text-align:center;
+}
+.end-turn-banner.show{ display:block; }
+
+/* ── Roll counters ── */
+.roll-counter{
+  font-family:'Bebas Neue',sans-serif;font-size:10px;letter-spacing:1px;
+  color:#6a7090;margin-left:4px;
+}
+
+/* ── Disabled (out of rolls) vs Locked (no-action this turn) dice ── */
+.die-box.die-disabled{
+  opacity:0.35;cursor:default;
+}
+.die-box.die-locked{
+  opacity:0.4;cursor:default;
+  border-color:#5a2030 !important;
+  background:repeating-linear-gradient(135deg,var(--surface),var(--surface) 4px,#1f1015 4px,#1f1015 8px);
+}
+.die-box.die-locked::after{
+  content:'\1F512';
+  position:absolute;bottom:2px;right:3px;font-size:9px;line-height:1;opacity:0.8;
+}
+
+/* ── Equip die + its own counter, stacked ── */
+.eq-die-col{
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+}
+
+/* ── Equip-hit tally — sits off to the side of the equip dice ── */
+.eq-hit-badge{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:1px;
+  margin-left:6px;padding:6px 10px;
+  border:1px solid var(--border2);border-radius:8px;
+  background:var(--surface);
+}
+.eq-hit-sym{ font-size:18px;line-height:1; }
+.eq-hit-count{
+  font-family:'Bebas Neue',sans-serif;font-size:18px;line-height:1;
+}
+.player.p1 .eq-hit-badge{ border-color:var(--dn-border); }
+.player.p1 .eq-hit-count{ color:var(--dn-bright); }
+.player.p2 .eq-hit-badge{ border-color:var(--p2-border); }
+.player.p2 .eq-hit-count{ color:var(--p2-bright); }
+
+/* small variant of the roll button, for the faction "roll all" action */
+.dice-roll-btn-small{
+  padding:6px 18px;font-size:11px;
+}
+
+/* bottom row holding the next-turn button (centered when it's the only item) */
+.dice-bottom-row{
+  display:flex;align-items:center;justify-content:center;
+  width:100%;max-width:280px;margin-top:4px;
+}
+.dice-bottom-row-solo{ justify-content:center; }
+.next-turn-btn{
+  background:none;border:1px solid var(--border2);border-radius:6px;
+  padding:5px 11px;cursor:pointer;
+  font-family:'Rajdhani',sans-serif;font-weight:700;font-size:10px;letter-spacing:1px;
+  color:#8a90a8;
+}
+.player.p1 .next-turn-btn{ border-color:var(--dn-border); }
+.player.p2 .next-turn-btn{ border-color:var(--p2-border); }
+
+.pip-track{ display:none; }
+
+/* ── GDP bar ── */
+.stat-gdp .pip-track{
+  display:block;
+  width:90%;height:8px;
+  background:var(--border2);
+  border-radius:4px;
+  margin-bottom:4px;
+  flex-shrink:0;
+  overflow:hidden;
+  position:relative;
+}
+/* inner fill bar — driven by a CSS custom property set via JS; color comes from player signature rules below */
+.stat-gdp .pip-track::after{
+  content:'';
+  position:absolute;inset:0;
+  width:var(--bar-pct,100%);
+  border-radius:4px;
+  transition:width 0.2s ease, background 0.25s;
+}
+
+/* ── D6 result overlay ── */
+.d6-overlay{
+  position:absolute;inset:0;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  background:rgba(6,15,31,0.92);
+  z-index:15;
+  opacity:0;
+  pointer-events:none;
+  transition:opacity .12s;
+}
+.d6-overlay.show{ opacity:1; }
+.d6-face{
+  font-family:'Bebas Neue',sans-serif;
+  font-size:clamp(38px,12vw,64px);
+  color:#40ddff;
+  text-shadow:0 0 24px rgba(0,200,255,0.7),0 0 6px rgba(0,200,255,0.5);
+  line-height:1;
+}
+.d6-label{
+  font-size:10px;font-weight:700;letter-spacing:3px;
+  color:#0090d0;margin-top:3px;text-transform:uppercase;
+}
+
+/* ── Long-press SVG arc ── */
+.lp-svg{
+  position:absolute;top:50%;left:50%;
+  transform:translate(-50%,-54%);
+  pointer-events:none;z-index:10;
+  opacity:0;transition:opacity .1s;
+}
+.lp-svg.active{ opacity:1; }
+
+/* KO counter's charge arc renders as a fixed overlay centered on that
+   player's whole panel, so it's visible no matter which hand/side you use */
+.ko-center-arc{
+  position:fixed;
+  width:84px;height:84px;
+  pointer-events:none;z-index:50;
+  opacity:0;transition:opacity .1s;
+  top:50%;left:50%;
+  transform:translate(-50%,-50%);
+}
+.ko-center-arc.active{ opacity:1; }
+
+/* ══ DIVIDER ══ */
+.divider{
+  flex-shrink:0;height:var(--divider-h);
+  background:#0a0c10;
+  border-top:1px solid var(--border);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;
+  padding:0 10px;
+  gap:8px;
+  z-index:20;
+  position:relative;
+}
+
+/* thin gold line top+bottom of divider */
+.divider::before,.divider::after{
+  content:'';position:absolute;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent 0%,var(--gold-dim) 30%,var(--gold-dim) 70%,transparent 100%);
+}
+.divider::before{ top:0; }
+.divider::after { bottom:0; }
+
+.divider-title{
+  font-family:'Bebas Neue',sans-serif;
+  font-size:13px;letter-spacing:4px;
+  color:var(--gold-dim);
+  white-space:nowrap;
+}
+
+/* reset button — icon-only */
+.reset-btn{
+  background:none;
+  border:1px solid var(--border2);
+  color:#3a4060;
+  display:flex;align-items:center;justify-content:center;
+  padding:5px;cursor:pointer;border-radius:4px;
+  transition:border-color .15s,color .15s;
+  line-height:0;
+}
+.reset-btn:active{ border-color:var(--gold-dim);color:var(--gold); }
+.reset-btn svg{ width:14px;height:14px;display:block; }
+
+/* ── KO section inside divider ── */
+.ko-section{
+  display:flex;align-items:center;gap:6px;
+  flex:1;
+}
+.ko-section.p1-ko{ justify-content:flex-start; }
+.ko-section.p2-ko{ justify-content:flex-end; }
+
+.ko-label{
+  font-size:10px;font-weight:700;letter-spacing:2px;
+  color:#3a4060;text-transform:uppercase;white-space:nowrap;
+}
+/* P2's label is rotated 180° so it reads upright from across the table,
+   since the divider itself does not rotate with the players */
+.ko-label.flip-label{ transform:rotate(180deg); display:inline-block; }
+
+/* KO counter — single tappable element */
+.ko-counter{
+  display:flex;gap:4px;align-items:center;cursor:pointer;
+  padding:3px 6px;border-radius:6px;
+  transition:background .15s;
+  position:relative;
+}
+.ko-counter:active{ background:rgba(255,255,255,0.05); }
+.ko-counter.charging{ background:rgba(255,255,255,0.08); }
+
+/* ── LED-style KO pips — saturated, glassy, glowing ── */
+.ko-pip{
+  width:11px;height:11px;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%, #2a3142 0%, #11141c 75%);
+  border:1.5px solid #353d52;
+  box-shadow:inset 0 1px 1px rgba(255,255,255,0.04);
+  transition:background .15s,border-color .15s,box-shadow .2s;
+}
+.ko-pip.lit{
+  background:radial-gradient(circle at 35% 30%, #ff5a44 0%, #e8230f 55%, #a3140a 100%);
+  border-color:#ff6b52;
+  box-shadow:
+    0 0 4px 1px #ff3a22,
+    0 0 12px 3px rgba(255,40,20,0.85),
+    0 0 22px 6px rgba(255,40,20,0.45),
+    inset 0 1px 2px rgba(255,255,255,0.5);
+}
+</style>
+</head>
+<body>
+
+<!-- ══ PLAYER 2 (top, flipped) ══ -->
+<div class="player p2" id="p2">
+  <div class="flash" id="flash-p2" style="background:rgba(110,180,247,0.15)"></div>
+
+  <div class="p-header">
+    <span class="p-label">Player 2</span>
+  </div>
+
+  <div class="row-band row-gdp">
+    <div class="stat stat-gdp dec-mode" id="cell-p2-gdp" data-pid="p2" data-key="gdp">
+      <div class="unlock-flash"></div>
+      <div class="stat-label">GDP · Life</div>
+      <div class="stat-val" id="val-p2-gdp">20</div>
+      <div class="pip-track" id="pips-p2-gdp"></div>
+    </div>
+    <div class="dice-btn" onclick="openDice('p2')" aria-label="Roll dice">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="3"></rect>
+        <circle cx="8" cy="8" r="1.2" fill="currentColor" stroke="none"></circle>
+        <circle cx="16" cy="8" r="1.2" fill="currentColor" stroke="none"></circle>
+        <circle cx="8" cy="16" r="1.2" fill="currentColor" stroke="none"></circle>
+        <circle cx="16" cy="16" r="1.2" fill="currentColor" stroke="none"></circle>
+        <circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"></circle>
+      </svg>
+      <span class="dice-btn-label">Roll</span>
+    </div>
+  </div>
+
+  <div class="row-band row-atk">
+    <div class="stat" id="cell-p2-atk" data-pid="p2" data-key="atk">
+      <div class="stat-label">Attack</div>
+      <div class="stat-val" id="val-p2-atk">1</div>
+      <div class="pip-track" id="pips-p2-atk"></div>
+    </div>
+    <div class="stat" id="cell-p2-def" data-pid="p2" data-key="def">
+      <div class="stat-label">Defense</div>
+      <div class="stat-val" id="val-p2-def">1</div>
+      <div class="pip-track" id="pips-p2-def"></div>
+    </div>
+  </div>
+
+  <div class="row-band row-eq">
+    <div class="stat" id="cell-p2-eq1" data-pid="p2" data-key="eq1">
+      <div class="unlock-flash"></div>
+      <div class="stat-label">Equip 1</div>
+      <div class="stat-val" id="val-p2-eq1">0</div>
+      <div class="pip-track" id="pips-p2-eq1"></div>
+    </div>
+    <div class="stat" id="cell-p2-eq2" data-pid="p2" data-key="eq2">
+      <div class="unlock-flash"></div>
+      <div class="stat-label">Equip 2</div>
+      <div class="stat-val" id="val-p2-eq2">0</div>
+      <div class="pip-track" id="pips-p2-eq2"></div>
+    </div>
+    <div class="stat" id="cell-p2-eq3" data-pid="p2" data-key="eq3">
+      <div class="unlock-flash"></div>
+      <div class="stat-label">Equip 3</div>
+      <div class="stat-val" id="val-p2-eq3">0</div>
+      <div class="pip-track" id="pips-p2-eq3"></div>
+    </div>
+  </div>
+
+  <!-- ══ DICE OVERLAY (slides over the board) ══ -->
+  <div class="dice-overlay" id="dice-overlay-p2">
+    <div class="dice-topbar">
+      <button class="dice-back-btn" onclick="closeDice('p2')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        Board
+      </button>
+      <span class="dice-title">ROLL DICE</span>
+      <span style="width:32px"></span>
+    </div>
+
+    <!-- Dice stage -->
+    <div class="dice-stage" id="dice-stage-p2">
+      <div class="dice-group-label">
+        FACTION DIE
+        <span class="roll-counter" id="dice-fac-rolls-p2">0/3</span>
+      </div>
+      <div class="dice-row dice-row-fac">
+        <div class="die-box" id="die-fac-p2-0" onclick="rollFactionOne('p2',0)"><span class="die-sym" id="die-fac-sym-p2-0">?</span></div>
+        <div class="die-box" id="die-fac-p2-1" onclick="rollFactionOne('p2',1)"><span class="die-sym" id="die-fac-sym-p2-1">?</span></div>
+        <div class="die-box" id="die-fac-p2-2" onclick="rollFactionOne('p2',2)"><span class="die-sym" id="die-fac-sym-p2-2">?</span></div>
+      </div>
+      <button class="dice-roll-btn dice-roll-btn-small" id="dice-roll-all-fac-p2" onclick="rollFactionAll('p2')">ROLL ALL 3</button>
+
+      <div class="dice-group-label" style="margin-top:6px">EQUIP &mdash; tap either die to roll</div>
+      <div class="dice-row dice-row-eq">
+        <div class="eq-die-col">
+          <div class="die-box die-box-eq" id="die-eq-p2-0" onclick="rollEquip('p2',0)"><span class="die-sym" id="die-eq-sym-p2-0">?</span></div>
+          <span class="roll-counter" id="dice-eq-rolls-p2-0">0/3</span>
+        </div>
+        <div class="eq-die-col">
+          <div class="die-box die-box-eq" id="die-eq-p2-1" onclick="rollEquip('p2',1)"><span class="die-sym" id="die-eq-sym-p2-1">?</span></div>
+          <span class="roll-counter" id="dice-eq-rolls-p2-1">0/3</span>
+        </div>
+        <div class="eq-hit-badge" id="eq-hit-badge-p2">
+          <span class="eq-hit-sym">&#x2705;</span>
+          <span class="eq-hit-count" id="eq-hit-count-p2">0</span>
+        </div>
+      </div>
+
+      <div class="end-turn-banner" id="dice-end-turn-p2">BOTH DICE STOPPED &mdash; TURN ENDS</div>
+      <div class="dice-bottom-row dice-bottom-row-solo">
+        <button class="next-turn-btn" onclick="nextTurnDice('p2')">NEXT TURN &#x21bb;</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ DIVIDER ══ -->
+<div class="divider">
+  <!-- P1 KO (left) -->
+  <div class="ko-section p1-ko">
+    <span class="ko-label">P1 KO</span>
+    <div class="ko-counter" id="ko-p1">
+      <div class="ko-pip" id="ko-p1-0"></div>
+      <div class="ko-pip" id="ko-p1-1"></div>
+      <div class="ko-pip" id="ko-p1-2"></div>
+      <div class="unlock-flash"></div>
+    </div>
+  </div>
+
+  <div class="divider-title" id="divider-title" onclick="rotatePlayers()" style="cursor:pointer;letter-spacing:2px">PROPAGANDICE</div>
+
+  <!-- P2 KO (right) — label flipped 180° so it reads upright for player 2 -->
+  <div class="ko-section p2-ko">
+    <div class="ko-counter" id="ko-p2">
+      <div class="ko-pip" id="ko-p2-0"></div>
+      <div class="ko-pip" id="ko-p2-1"></div>
+      <div class="ko-pip" id="ko-p2-2"></div>
+      <div class="unlock-flash"></div>
+    </div>
+    <span class="ko-label flip-label">P2 KO</span>
+  </div>
+
+  <button class="reset-btn" ontouchstart="" onclick="resetAll()" aria-label="Reset all">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="1 4 1 10 7 10"></polyline>
+      <polyline points="23 20 23 14 17 14"></polyline>
+      <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10"></path>
+      <path d="M3.51 15A9 9 0 0 0 18.36 18.36L23 14"></path>
+    </svg>
+  </button>
+</div>
+
+<!-- ══ PLAYER 1 (bottom, normal) ══ -->
+<div class="player p1" id="p1">
+  <div class="flash" id="flash-p1" style="background:rgba(110,180,247,0.15)"></div>
+
+  <div class="p-header">
+    <span class="p-label">Player 1</span>
+  </div>
+
+  <div class="row-band row-gdp">
+    <div class="stat stat-gdp dec-mode" id="cell-p1-gdp" data-pid="p1" data-key="gdp">
+      <div class="unlock-flash"></div>
+      <div class="stat-label">GDP · Life</div>
+      <div class="stat-val" id="val-p1-gdp">20</div>
+      <div class="pip-track" id="pips-p1-gdp"></div>
+    </div>
+    <div class="dice-btn" onclick="openDice('p1')" aria-label="Roll dice">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="3"></rect>
+        <circle cx="8" cy="8" r="1.2" fill="currentColor" stroke="none"></circle>
+        <circle cx="16" cy="8" r="1.2" fill="currentColor" stroke="none"></circle>
+        <circle cx="8" cy="16" r="1.2" fill="currentColor" stroke="none"></circle>
+        <circle cx="16" cy="16" r="1.2" fill="currentColor" stroke="none"></circle>
+        <circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"></circle>
+      </svg>
+      <span class="dice-btn-label">Roll</span>
+    </div>
+  </div>
+
+  <div class="row-band row-atk">
+    <div class="stat" id="cell-p1-atk" data-pid="p1" data-key="atk">
+      <div class="stat-label">Attack</div>
+      <div class="stat-val" id="val-p1-atk">1</div>
+      <div class="pip-track" id="pips-p1-atk"></div>
+    </div>
+    <div class="stat" id="cell-p1-def" data-pid="p1" data-key="def">
+      <div class="stat-label">Defense</div>
+      <div class="stat-val" id="val-p1-def">1</div>
+      <div class="pip-track" id="pips-p1-def"></div>
+    </div>
+  </div>
+
+  <div class="row-band row-eq">
+    <div class="stat" id="cell-p1-eq1" data-pid="p1" data-key="eq1">
+      <div class="unlock-flash"></div>
+      <div class="stat-label">Equip 1</div>
+      <div class="stat-val" id="val-p1-eq1">0</div>
+      <div class="pip-track" id="pips-p1-eq1"></div>
+    </div>
+    <div class="stat" id="cell-p1-eq2" data-pid="p1" data-key="eq2">
+      <div class="unlock-flash"></div>
+      <div class="stat-label">Equip 2</div>
+      <div class="stat-val" id="val-p1-eq2">0</div>
+      <div class="pip-track" id="pips-p1-eq2"></div>
+    </div>
+    <div class="stat" id="cell-p1-eq3" data-pid="p1" data-key="eq3">
+      <div class="unlock-flash"></div>
+      <div class="stat-label">Equip 3</div>
+      <div class="stat-val" id="val-p1-eq3">0</div>
+      <div class="pip-track" id="pips-p1-eq3"></div>
+    </div>
+  </div>
+
+  <!-- ══ DICE OVERLAY (slides over the board) ══ -->
+  <div class="dice-overlay" id="dice-overlay-p1">
+    <div class="dice-topbar">
+      <button class="dice-back-btn" onclick="closeDice('p1')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        Board
+      </button>
+      <span class="dice-title">ROLL DICE</span>
+      <span style="width:32px"></span>
+    </div>
+
+    <!-- Dice stage -->
+    <div class="dice-stage" id="dice-stage-p1">
+      <div class="dice-group-label">
+        FACTION DIE
+        <span class="roll-counter" id="dice-fac-rolls-p1">0/3</span>
+      </div>
+      <div class="dice-row dice-row-fac">
+        <div class="die-box" id="die-fac-p1-0" onclick="rollFactionOne('p1',0)"><span class="die-sym" id="die-fac-sym-p1-0">?</span></div>
+        <div class="die-box" id="die-fac-p1-1" onclick="rollFactionOne('p1',1)"><span class="die-sym" id="die-fac-sym-p1-1">?</span></div>
+        <div class="die-box" id="die-fac-p1-2" onclick="rollFactionOne('p1',2)"><span class="die-sym" id="die-fac-sym-p1-2">?</span></div>
+      </div>
+      <button class="dice-roll-btn dice-roll-btn-small" id="dice-roll-all-fac-p1" onclick="rollFactionAll('p1')">ROLL ALL 3</button>
+
+      <div class="dice-group-label" style="margin-top:6px">EQUIP &mdash; tap either die to roll</div>
+      <div class="dice-row dice-row-eq">
+        <div class="eq-die-col">
+          <div class="die-box die-box-eq" id="die-eq-p1-0" onclick="rollEquip('p1',0)"><span class="die-sym" id="die-eq-sym-p1-0">?</span></div>
+          <span class="roll-counter" id="dice-eq-rolls-p1-0">0/3</span>
+        </div>
+        <div class="eq-die-col">
+          <div class="die-box die-box-eq" id="die-eq-p1-1" onclick="rollEquip('p1',1)"><span class="die-sym" id="die-eq-sym-p1-1">?</span></div>
+          <span class="roll-counter" id="dice-eq-rolls-p1-1">0/3</span>
+        </div>
+        <div class="eq-hit-badge" id="eq-hit-badge-p1">
+          <span class="eq-hit-sym">&#x2705;</span>
+          <span class="eq-hit-count" id="eq-hit-count-p1">0</span>
+        </div>
+      </div>
+
+      <div class="end-turn-banner" id="dice-end-turn-p1">BOTH DICE STOPPED &mdash; TURN ENDS</div>
+      <div class="dice-bottom-row dice-bottom-row-solo">
+        <button class="next-turn-btn" onclick="nextTurnDice('p1')">NEXT TURN &#x21bb;</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Fixed centered charge-arc overlays for KO long-press, one per player panel -->
+<svg class="ko-center-arc" id="ko-arc-p1" viewBox="0 0 64 64">
+  <circle cx="32" cy="32" r="26" fill="none" stroke="rgba(0,200,255,0.7)" stroke-width="3"
+          stroke-dasharray="163.4" stroke-dashoffset="163.4" stroke-linecap="round" transform="rotate(-90 32 32)"></circle>
+</svg>
+<svg class="ko-center-arc" id="ko-arc-p2" viewBox="0 0 64 64">
+  <circle cx="32" cy="32" r="26" fill="none" stroke="rgba(214,59,255,0.7)" stroke-width="3"
+          stroke-dasharray="163.4" stroke-dashoffset="163.4" stroke-linecap="round" transform="rotate(-90 32 32)"></circle>
+</svg>
+
+<script>
+// ── Constants ─────────────────────────────────────────────────
+var MAX = { gdp:20, atk:6, def:6, eq1:6, eq2:6, eq3:6 };
+var MIN = { gdp:0,  atk:0, def:0, eq1:0, eq2:0, eq3:0 };
+var DEFAULT_DEC = { gdp:true, atk:false, def:true, eq1:false, eq2:false, eq3:false };
+var ROLLABLE = { gdp:false, atk:true, def:true, eq1:false, eq2:false, eq3:false }; // long-press rolls a d6
+var RESETTABLE = { gdp:true, atk:false, def:false, eq1:true, eq2:true, eq3:true }; // long-press resets
+var RESET_VALUE = { gdp:20, eq1:0, eq2:0, eq3:0 }; // target value for the long-press reset
+
+// ── State ─────────────────────────────────────────────────────
+var state = {
+  p1:{ gdp:20,atk:1,def:1,eq1:0,eq2:0,eq3:0,
+       dec:{gdp:true,atk:false,def:false,eq1:false,eq2:false,eq3:false},
+       ko:0 },
+  p2:{ gdp:20,atk:1,def:1,eq1:0,eq2:0,eq3:0,
+       dec:{gdp:true,atk:false,def:false,eq1:false,eq2:false,eq3:false},
+       ko:0 }
+};
+
+// ── Audio ─────────────────────────────────────────────────────
+var AC;
+function getAC(){ if(!AC) AC=new(window.AudioContext||window.webkitAudioContext)(); return AC; }
+function beep(f,d,v,t){
+  try{
+    var ac=getAC(),o=ac.createOscillator(),g=ac.createGain();
+    o.connect(g);g.connect(ac.destination);
+    o.type=t||'sine';o.frequency.value=f;
+    g.gain.setValueAtTime(0,ac.currentTime);
+    g.gain.linearRampToValueAtTime(v||0.08,ac.currentTime+0.01);
+    g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+d);
+    o.start();o.stop(ac.currentTime+d+0.02);
+  }catch(e){}
+}
+function sfxUp(){
+  beep(660,0.07,0.07);
+  setTimeout(function(){beep(880,0.05,0.05);},55);
+}
+function sfxDown(){
+  beep(440,0.07,0.07,'triangle');
+  setTimeout(function(){beep(330,0.08,0.06,'triangle');},55);
+}
+function sfxToggle(){
+  beep(550,0.04,0.08);
+  setTimeout(function(){beep(770,0.04,0.06);},45);
+}
+function sfxKO(){
+  beep(180,0.1,0.12,'sawtooth');
+  setTimeout(function(){beep(130,0.15,0.12,'sawtooth');},100);
+  setTimeout(function(){beep(90,0.22,0.12,'sawtooth');},230);
+}
+function sfxKOPip(){
+  beep(300,0.06,0.09,'triangle');
+}
+function sfxReset(){
+  beep(440,0.04,0.06);
+  setTimeout(function(){beep(550,0.04,0.06);},50);
+  setTimeout(function(){beep(660,0.06,0.06);},100);
+}
+function sfxLongPress(){
+  beep(990,0.05,0.1);
+}
+
+// ── Flash ─────────────────────────────────────────────────────
+function flashPanel(pid){
+  var el=document.getElementById('flash-'+pid);
+  if(!el)return;
+  el.classList.add('show');
+  setTimeout(function(){el.classList.remove('show');},180);
+}
+
+// ── Pop ───────────────────────────────────────────────────────
+function popVal(pid,key){
+  var el=document.getElementById('val-'+pid+'-'+key);
+  if(!el)return;
+  el.classList.remove('pop');
+  void el.offsetWidth;
+  el.classList.add('pop');
+  setTimeout(function(){el.classList.remove('pop');},130);
+}
+
+// ── Pips ─────────────────────────────────────────────────────
+function buildPips(pid,key){
+  // Only GDP has a visual track; others suppressed via CSS
+  // Nothing to build — bar is pure CSS driven by --bar-pct
+}
+function updatePips(pid,key){
+  if(key!=='gdp') return;
+  var pct=(state[pid][key]/MAX[key]*100).toFixed(1)+'%';
+  var track=document.getElementById('pips-'+pid+'-'+key);
+  if(track) track.style.setProperty('--bar-pct', pct);
+}
+
+// ── Mode pill ─────────────────────────────────────────────────
+function renderMode(pid,key){
+  var isDec=state[pid].dec[key];
+  var cell=document.getElementById('cell-'+pid+'-'+key);
+  if(cell) cell.classList.toggle('dec-mode',isDec);
+}
+
+// ── Long-press reset (GDP/Equip → max) ────────────────────────
+function flashReset(cell){
+  var fl=cell.querySelector('.unlock-flash');
+  if(!fl) return;
+  fl.classList.remove('show');
+  void fl.offsetWidth;
+  fl.classList.add('show');
+}
+function sfxResetCell(){
+  beep(523,0.06,0.09);
+  setTimeout(function(){beep(659,0.06,0.09);},55);
+  setTimeout(function(){beep(880,0.1,0.1);},110);
+}
+
+// ── Change ────────────────────────────────────────────────────
+function change(pid,key,delta){
+  try{getAC().resume();}catch(e){}
+  var cur=state[pid][key];
+  var next=Math.max(MIN[key],Math.min(MAX[key],cur+delta));
+  if(next===cur)return;
+  state[pid][key]=next;
+  if(delta>0) sfxUp(); else sfxDown();
+  if(key==='gdp'&&next===0){sfxKO();flashPanel(pid);}
+  document.getElementById('val-'+pid+'-'+key).textContent=next;
+  popVal(pid,key);
+  updatePips(pid,key);
+}
+
+// ── KO ────────────────────────────────────────────────────────
+function cycleKO(pid){
+  try{getAC().resume();}catch(e){}
+  state[pid].ko=(state[pid].ko+1)%4;
+  renderKO(pid);
+  if(state[pid].ko===0) sfxDown();
+  else if(state[pid].ko===3){sfxKO();flashPanel(pid);}
+  else sfxKOPip();
+}
+function renderKO(pid){
+  var n=state[pid].ko;
+  for(var i=0;i<3;i++){
+    var dot=document.getElementById('ko-'+pid+'-'+i);
+    if(dot) dot.classList.toggle('lit',i<n);
+  }
+}
+
+// Long-press on the KO counter resets that player's whole panel.
+// The charge arc renders centered over that player's whole panel (not the
+// small KO dots), so it stays visible no matter where your thumb is.
+var koLpTimers={};
+var koLpFired={};
+
+function positionKoArc(pid){
+  var arc=document.getElementById('ko-arc-'+pid);
+  var panel=document.getElementById(pid);
+  if(!arc||!panel) return;
+  var r=panel.getBoundingClientRect();
+  arc.style.left=(r.left+r.width/2)+'px';
+  arc.style.top=(r.top+r.height/2)+'px';
+}
+
+function koLpStart(el,pid){
+  var id=el.id;
+  koLpFired[id]=false;
+  el.classList.add('charging');
+
+  var arc=document.getElementById('ko-arc-'+pid);
+  positionKoArc(pid);
+  arc.classList.add('active');
+  var circle=arc.querySelector('circle');
+  var perim=163.4;
+  var start=Date.now();
+  var dur=LONG_MS_SLOW;
+  if(koLpTimers[id+'a']) cancelAnimationFrame(koLpTimers[id+'a']);
+
+  function frame(){
+    var p=Math.min((Date.now()-start)/dur,1);
+    circle.setAttribute('stroke-dashoffset',perim*(1-p));
+    if(p<1&&koLpTimers[id+'t']) koLpTimers[id+'a']=requestAnimationFrame(frame);
+  }
+  koLpTimers[id+'a']=requestAnimationFrame(frame);
+
+  koLpTimers[id+'t']=setTimeout(function(){
+    koLpFired[id]=true;
+    arc.classList.remove('active');
+    el.classList.remove('charging');
+    try{getAC().resume();}catch(e){}
+    sfxResetCell();
+    resetPlayer(pid);
+    flashPanel(pid);
+  },dur);
+}
+function koLpEnd(el,pid){
+  var id=el.id;
+  var fired=koLpFired[id];
+  clearTimeout(koLpTimers[id+'t']);koLpTimers[id+'t']=null;
+  cancelAnimationFrame(koLpTimers[id+'a']);koLpTimers[id+'a']=null;
+  var arc=document.getElementById('ko-arc-'+pid);
+  if(arc){
+    arc.classList.remove('active');
+    var c=arc.querySelector('circle');
+    if(c) c.setAttribute('stroke-dashoffset','163.4');
+  }
+  el.classList.remove('charging');
+  if(!fired) cycleKO(pid); // short tap — normal cycle behavior
+}
+function koLpCancel(el,pid){
+  var id=el.id;
+  clearTimeout(koLpTimers[id+'t']);koLpTimers[id+'t']=null;
+  cancelAnimationFrame(koLpTimers[id+'a']);koLpTimers[id+'a']=null;
+  var arc=document.getElementById('ko-arc-'+pid);
+  if(arc){
+    arc.classList.remove('active');
+    var c=arc.querySelector('circle');
+    if(c) c.setAttribute('stroke-dashoffset','163.4');
+  }
+  el.classList.remove('charging');
+}
+function wireKO(el,pid){
+  el.addEventListener('touchstart',function(e){e.preventDefault();koLpStart(el,pid);},{passive:false});
+  el.addEventListener('touchend',  function(e){e.preventDefault();koLpEnd(el,pid);},{passive:false});
+  el.addEventListener('touchcancel',function(){koLpCancel(el,pid);});
+  el.addEventListener('mousedown', function(){koLpStart(el,pid);});
+  el.addEventListener('mouseup',   function(){koLpEnd(el,pid);});
+  el.addEventListener('mouseleave',function(){koLpCancel(el,pid);});
+}
+
+// ── D6 Roll ───────────────────────────────────────────────────
+function sfxDice(){
+  // rattling shake then a landing click
+  [0,60,120].forEach(function(t){
+    setTimeout(function(){
+      beep(80+Math.random()*60, 0.04, 0.07, 'sawtooth');
+    },t);
+  });
+  setTimeout(function(){ beep(900,0.05,0.1); },220);
+  setTimeout(function(){ beep(1200,0.04,0.08); },280);
+}
+
+function rollD6(cell,pid,key){
+  sfxDice();
+
+  // Rapid-flicker animation for ~280ms then settle on result
+  var result=Math.floor(Math.random()*6)+1;
+  var overlay=cell.querySelector('.d6-overlay');
+  if(!overlay){
+    overlay=document.createElement('div');
+    overlay.className='d6-overlay';
+    overlay.innerHTML='<div class="d6-face" id="d6f-'+cell.id+'">—</div>'
+                    +'<div class="d6-label">D6 ROLL</div>';
+    cell.appendChild(overlay);
+  }
+  var face=overlay.querySelector('.d6-face');
+  overlay.classList.add('show');
+
+  // Flicker through random values
+  var flickers=0, maxFlickers=10;
+  var interval=setInterval(function(){
+    face.textContent=Math.floor(Math.random()*6)+1;
+    flickers++;
+    if(flickers>=maxFlickers){
+      clearInterval(interval);
+      face.textContent=result;
+      // set the counter to this value
+      state[pid][key]=Math.min(result,MAX[key]);
+      document.getElementById('val-'+pid+'-'+key).textContent=state[pid][key];
+      popVal(pid,key);
+      // hide overlay after a beat
+      setTimeout(function(){ overlay.classList.remove('show'); },900);
+    }
+  },28);
+}
+
+// ── Faction + Equip Dice Screen ────────────────────────────────
+// ONE shared 6-face Faction die (rolled as 3 separate dice, max 3
+// rolls total per turn — rolling "all 3" or just one each cost 1
+// of that budget) and ONE shared Equip die (rolled as 2 separate
+// dice, each with its OWN budget of up to 3 rolls per turn).
+//
+// Equip die faces: 2 Equip, 2 No Action (still rerollable), 2 Stop
+// (locks THAT die only, until next turn). If both equip dice end up
+// locked on Stop at the same time, that ends the turn.
+//
+// Scoring/tracking is manual — this screen is purely for rolling.
+var FDIE_FACES=[
+  {sym:'\u{1F528}', label:'Hammer', faction:'communist'},   // 🔨
+  {sym:'\u{1FA8F}', label:'Sickle', faction:'communist'}, // 🪏 shovel — stand-in for sickle
+  {sym:'\u{2708}\uFE0F', label:'Plane',  faction:'capitalist'}, // ✈️
+  {sym:'\u{1F52B}', label:'Gun',    faction:'capitalist'},  // 🔫
+  {sym:'\u{2694}\uFE0F', label:'Sword',  faction:'knight'},    // ⚔️
+  {sym:'\u{1F6F8}', label:'UFO',    faction:'alien'}        // 🛸
+];
+var EDIE_FACES=[
+  {sym:'\u{2705}', label:'Equip',     stop:false},  // ✅
+  {sym:'\u{2705}', label:'Equip',     stop:false},  // ✅
+  {sym:'\u{2B55}', label:'No Action', stop:false},  // ⭕ rerollable
+  {sym:'\u{2B55}', label:'No Action', stop:false},  // ⭕ rerollable
+  {sym:'\u{1F6D1}',label:'Stop',      stop:true},   // 🛑 locks this die
+  {sym:'\u{1F6D1}',label:'Stop',      stop:true}     // 🛑 locks this die
+];
+var MAX_FACTION_ROLLS=3;
+var MAX_EQUIP_ROLLS=3;
+
+var diceUI = {
+  p1:{ facRolls:0, eqRolls:[0,0], eqLocked:[false,false], eqHits:0 },
+  p2:{ facRolls:0, eqRolls:[0,0], eqLocked:[false,false], eqHits:0 }
+};
+
+function openDice(pid){
+  try{getAC().resume();}catch(e){}
+  sfxBtn2();
+  document.getElementById('dice-overlay-'+pid).classList.add('open');
+  refreshDiceScreen(pid);
+}
+function closeDice(pid){
+  try{getAC().resume();}catch(e){}
+  sfxBtn2();
+  document.getElementById('dice-overlay-'+pid).classList.remove('open');
+}
+function sfxBtn2(){ beep(660,0.045,0.07); }
+function sfxLockDie(){ beep(740,0.05,0.08); setTimeout(function(){beep(420,0.08,0.08,'triangle');},60); }
+function sfxEndTurn(){
+  beep(200,0.08,0.13,'sawtooth');
+  setTimeout(function(){beep(150,0.12,0.13,'sawtooth');},90);
+  setTimeout(function(){beep(100,0.2,0.13,'sawtooth');},200);
+}
+
+function refreshDiceScreen(pid){
+  renderRollCounters(pid);
+  renderEquipLockState(pid);
+  renderEqHits(pid);
+}
+
+// Starts a new turn: clears roll budgets and unlocks both equip dice.
+function nextTurnDice(pid){
+  try{getAC().resume();}catch(e){}
+  sfxBtn2();
+  diceUI[pid].facRolls=0;
+  diceUI[pid].eqRolls=[0,0];
+  diceUI[pid].eqLocked=[false,false];
+  diceUI[pid].eqHits=0;
+  renderRollCounters(pid);
+  renderEquipLockState(pid);
+  renderEqHits(pid);
+}
+
+function renderEqHits(pid){
+  var el=document.getElementById('eq-hit-count-'+pid);
+  if(el) el.textContent = diceUI[pid].eqHits;
+}
+
+// ── Roll counters / lock-state rendering ──────────────────────
+function renderRollCounters(pid){
+  var d=diceUI[pid];
+  var facEl=document.getElementById('dice-fac-rolls-'+pid);
+  if(facEl) facEl.textContent = d.facRolls+'/'+MAX_FACTION_ROLLS;
+  var facAllBtn=document.getElementById('dice-roll-all-fac-'+pid);
+  if(facAllBtn) facAllBtn.disabled = d.facRolls>=MAX_FACTION_ROLLS;
+  for(var i=0;i<3;i++){
+    var single=document.getElementById('die-fac-'+pid+'-'+i);
+    if(single) single.classList.toggle('die-disabled', d.facRolls>=MAX_FACTION_ROLLS);
+  }
+  for(var j=0;j<2;j++){
+    var eqRollEl=document.getElementById('dice-eq-rolls-'+pid+'-'+j);
+    if(eqRollEl) eqRollEl.textContent = d.eqRolls[j]+'/'+MAX_EQUIP_ROLLS;
+    var eqBox=document.getElementById('die-eq-'+pid+'-'+j);
+    if(eqBox) eqBox.classList.toggle('die-disabled', d.eqRolls[j]>=MAX_EQUIP_ROLLS && !d.eqLocked[j]);
+  }
+}
+function renderEquipLockState(pid){
+  var d=diceUI[pid];
+  for(var j=0;j<2;j++){
+    var box=document.getElementById('die-eq-'+pid+'-'+j);
+    if(box) box.classList.toggle('die-locked', d.eqLocked[j]);
+  }
+  var bothLocked = d.eqLocked[0] && d.eqLocked[1];
+  var endTurnEl=document.getElementById('dice-end-turn-'+pid);
+  if(endTurnEl) endTurnEl.classList.toggle('show', bothLocked);
+}
+
+// ── Rolling: faction (all 3 or just one) ───────────────────────
+function rollFactionAll(pid){
+  var d=diceUI[pid];
+  if(d.facRolls>=MAX_FACTION_ROLLS) return;
+  try{getAC().resume();}catch(e){}
+  sfxDice();
+  d.facRolls++;
+
+  var boxEls=[0,1,2].map(function(i){ return document.getElementById('die-fac-'+pid+'-'+i); });
+  var symEls=[0,1,2].map(function(i){ return document.getElementById('die-fac-sym-'+pid+'-'+i); });
+  boxEls.forEach(function(b){ b.classList.add('rolling'); });
+  var results=[0,1,2].map(function(){ return FDIE_FACES[Math.floor(Math.random()*FDIE_FACES.length)]; });
+
+  var flickers=0,maxFlickers=9;
+  var interval=setInterval(function(){
+    symEls.forEach(function(el){ el.textContent=FDIE_FACES[Math.floor(Math.random()*FDIE_FACES.length)].sym; });
+    flickers++;
+    if(flickers>=maxFlickers){
+      clearInterval(interval);
+      boxEls.forEach(function(b){ b.classList.remove('rolling'); });
+      symEls.forEach(function(el,i){ el.textContent=results[i].sym; });
+      renderRollCounters(pid);
+      beep(900,0.05,0.1);
+      setTimeout(function(){ beep(1200,0.04,0.08); },70);
+    }
+  },32);
+}
+
+function rollFactionOne(pid,idx){
+  var d=diceUI[pid];
+  if(d.facRolls>=MAX_FACTION_ROLLS) return;
+  try{getAC().resume();}catch(e){}
+  sfxDice();
+  d.facRolls++;
+
+  var boxEl=document.getElementById('die-fac-'+pid+'-'+idx);
+  var symEl=document.getElementById('die-fac-sym-'+pid+'-'+idx);
+  boxEl.classList.add('rolling');
+  var result=FDIE_FACES[Math.floor(Math.random()*FDIE_FACES.length)];
+
+  var flickers=0,maxFlickers=9;
+  var interval=setInterval(function(){
+    symEl.textContent=FDIE_FACES[Math.floor(Math.random()*FDIE_FACES.length)].sym;
+    flickers++;
+    if(flickers>=maxFlickers){
+      clearInterval(interval);
+      boxEl.classList.remove('rolling');
+      symEl.textContent=result.sym;
+      renderRollCounters(pid);
+      beep(900,0.05,0.1);
+      setTimeout(function(){ beep(1200,0.04,0.08); },70);
+    }
+  },32);
+}
+
+// ── Rolling: equip dice ─────────────────────────────────────────
+// By default both equip dice roll together as a pair (tapping either
+// one triggers both). If one die has locked on "Stop", only the
+// remaining unlocked die can still be rolled, on its own.
+function rollEquip(pid,idx){
+  var d=diceUI[pid];
+  if(d.eqLocked[idx]){ beep(220,0.05,0.05,'triangle'); return; } // this die is locked — denial click
+
+  var otherIdx = idx===0 ? 1 : 0;
+  var otherAvailable = !d.eqLocked[otherIdx];
+  var indices = otherAvailable ? [0,1] : [idx]; // roll the pair, or just the lone unlocked die
+
+  // Filter to only indices that still have rolls left
+  indices = indices.filter(function(i){ return d.eqRolls[i] < MAX_EQUIP_ROLLS; });
+  if(indices.length===0) return;
+
+  try{getAC().resume();}catch(e){}
+  sfxDice();
+  indices.forEach(function(i){ d.eqRolls[i]++; });
+
+  var boxEls = indices.map(function(i){ return document.getElementById('die-eq-'+pid+'-'+i); });
+  var symEls = indices.map(function(i){ return document.getElementById('die-eq-sym-'+pid+'-'+i); });
+  boxEls.forEach(function(b){ b.classList.add('rolling'); });
+  var results = indices.map(function(){ return EDIE_FACES[Math.floor(Math.random()*EDIE_FACES.length)]; });
+
+  var flickers=0,maxFlickers=9;
+  var interval=setInterval(function(){
+    symEls.forEach(function(el){ el.textContent=EDIE_FACES[Math.floor(Math.random()*EDIE_FACES.length)].sym; });
+    flickers++;
+    if(flickers>=maxFlickers){
+      clearInterval(interval);
+      boxEls.forEach(function(b){ b.classList.remove('rolling'); });
+      symEls.forEach(function(el,k){ el.textContent=results[k].sym; });
+      renderRollCounters(pid);
+
+      results.forEach(function(r){ if(r.label==='Equip') d.eqHits++; });
+      renderEqHits(pid);
+
+      var anyStopped=false;
+      results.forEach(function(r,k){
+        if(r.stop){ d.eqLocked[indices[k]]=true; anyStopped=true; }
+      });
+      if(anyStopped){
+        renderEquipLockState(pid);
+        if(d.eqLocked[0] && d.eqLocked[1]) sfxEndTurn();
+        else sfxLockDie();
+      } else {
+        beep(900,0.05,0.1);
+        setTimeout(function(){ beep(1200,0.04,0.08); },70);
+      }
+    }
+  },32);
+}
+
+// ── Long-press + tap ─────────────────────────────────────────
+var LONG_MS=480; // default hold length (used by Equip cells)
+var LONG_MS_SLOW=960; // doubled hold length for GDP and Attack/Defense (reset/roll actions)
+function holdDuration(key){
+  return (key==='gdp'||key==='atk'||key==='def') ? LONG_MS_SLOW : LONG_MS;
+}
+var lpTimers={};
+var lpFired={};
+var lpLockout={}; // brief lockout after long-press so touchend doesn't also tap
+
+function makeLPSvg(cell){
+  var ex=cell.querySelector('.lp-svg');
+  if(ex)return ex;
+  var ns='http://www.w3.org/2000/svg';
+  var svg=document.createElementNS(ns,'svg');
+  svg.setAttribute('class','lp-svg');
+  svg.setAttribute('width','64');svg.setAttribute('height','64');
+  svg.setAttribute('viewBox','0 0 64 64');
+  var circle=document.createElementNS(ns,'circle');
+  circle.setAttribute('cx','32');circle.setAttribute('cy','32');circle.setAttribute('r','26');
+  circle.setAttribute('fill','none');
+  circle.setAttribute('stroke','rgba(0,200,255,0.55)');
+  circle.setAttribute('stroke-width','3');
+  circle.setAttribute('stroke-dasharray','163.4');
+  circle.setAttribute('stroke-dashoffset','163.4');
+  circle.setAttribute('stroke-linecap','round');
+  circle.setAttribute('transform','rotate(-90 32 32)');
+  svg.appendChild(circle);
+  cell.appendChild(svg);
+  return svg;
+}
+
+function lpStart(cell,pid,key){
+  var id=cell.id;
+  lpFired[id]=false;
+  lpLockout[id]=false;
+  cell.classList.add('tapped');
+  var svg=makeLPSvg(cell);
+  svg.classList.add('active');
+  var circle=svg.querySelector('circle');
+  var perim=163.4;
+  var start=Date.now();
+  var dur=holdDuration(key);
+  if(lpTimers[id+'a'])cancelAnimationFrame(lpTimers[id+'a']);
+
+  function frame(){
+    var p=Math.min((Date.now()-start)/dur,1);
+    circle.setAttribute('stroke-dashoffset',perim*(1-p));
+    if(p<1&&lpTimers[id+'t']) lpTimers[id+'a']=requestAnimationFrame(frame);
+  }
+  lpTimers[id+'a']=requestAnimationFrame(frame);
+
+  lpTimers[id+'t']=setTimeout(function(){
+    lpFired[id]=true;
+    lpLockout[id]=true;
+    svg.classList.remove('active');
+    cell.classList.remove('tapped');
+
+    if(ROLLABLE[key]){
+      // ATK/DEF — long press rolls a d6
+      rollD6(cell,pid,key);
+    } else if(RESETTABLE[key]){
+      // GDP resets to 20; Equips reset to 0
+      state[pid][key]=RESET_VALUE[key];
+      sfxResetCell();
+      document.getElementById('val-'+pid+'-'+key).textContent=state[pid][key];
+      popVal(pid,key);
+      updatePips(pid,key);
+      flashReset(cell);
+    }
+  },dur);
+}
+
+function lpEnd(cell,pid,key){
+  var id=cell.id;
+  var fired=lpFired[id];
+  var locked=lpLockout[id];
+  clearTimeout(lpTimers[id+'t']);lpTimers[id+'t']=null;
+  cancelAnimationFrame(lpTimers[id+'a']);lpTimers[id+'a']=null;
+  var svg=cell.querySelector('.lp-svg');
+  if(svg){
+    svg.classList.remove('active');
+    var c=svg.querySelector('circle');
+    if(c) c.setAttribute('stroke-dashoffset','163.4');
+  }
+  cell.classList.remove('tapped');
+  // If long-press fired OR we're in lockout window, don't also register a tap
+  if(fired||locked) return;
+
+  if(key==='atk'){
+    // Attack — cycles 6→5→4→3→2→1→6, decrementing and wrapping, on every tap
+    var cur=state[pid][key];
+    var next = cur<=1 ? MAX[key] : cur-1;
+    state[pid][key]=next;
+    sfxDown();
+    document.getElementById('val-'+pid+'-'+key).textContent=next;
+    popVal(pid,key);
+  } else if(key==='def'){
+    // Defense — tap always decrements, never increments
+    change(pid,key,-1);
+  } else if(key==='gdp'){
+    change(pid,key,-1); // GDP only ever counts down on a normal tap
+  } else {
+    // EQ1/2/3 — counts up, caps at MAX (no wraparound; long-press resets to 0)
+    var cur=state[pid][key];
+    if(cur>=MAX[key]){
+      beep(220,0.05,0.05,'triangle'); // gentle denial click at the ceiling
+    } else {
+      var next=cur+1;
+      state[pid][key]=next;
+      sfxUp();
+      document.getElementById('val-'+pid+'-'+key).textContent=next;
+      popVal(pid,key);
+    }
+  }
+  cell.classList.add('tapped');
+  setTimeout(function(){cell.classList.remove('tapped');},130);
+}
+
+function lpCancel(cell){
+  var id=cell.id;
+  clearTimeout(lpTimers[id+'t']);lpTimers[id+'t']=null;
+  cancelAnimationFrame(lpTimers[id+'a']);lpTimers[id+'a']=null;
+  var svg=cell.querySelector('.lp-svg');
+  if(svg){
+    svg.classList.remove('active');
+    var c=svg.querySelector('circle');
+    if(c) c.setAttribute('stroke-dashoffset','163.4');
+  }
+  cell.classList.remove('tapped');
+}
+
+function wireCell(cell){
+  var pid=cell.dataset.pid,key=cell.dataset.key;
+  cell.addEventListener('touchstart',function(e){e.preventDefault();lpStart(cell,pid,key);},{passive:false});
+  cell.addEventListener('touchend',  function(e){e.preventDefault();lpEnd(cell,pid,key);},{passive:false});
+  cell.addEventListener('touchcancel',function(){lpCancel(cell);});
+  cell.addEventListener('mousedown', function(){lpStart(cell,pid,key);});
+  cell.addEventListener('mouseup',   function(){lpEnd(cell,pid,key);});
+  cell.addEventListener('mouseleave',function(){lpCancel(cell);});
+}
+
+// ── Reset ─────────────────────────────────────────────────────
+function resetPlayer(pid){
+  Object.keys(MAX).forEach(function(key){
+    state[pid][key]=(key==='gdp'?20:(key==='atk'||key==='def')?1:0);
+    document.getElementById('val-'+pid+'-'+key).textContent=state[pid][key];
+    state[pid].dec[key]=DEFAULT_DEC[key];
+    renderMode(pid,key);
+    updatePips(pid,key);
+  });
+  state[pid].ko=0;
+  renderKO(pid);
+}
+
+function resetAll(){
+  try{getAC().resume();}catch(e){}
+  sfxReset();
+  ['p1','p2'].forEach(resetPlayer);
+}
+
+// ── Rotate table ─────────────────────────────────────────────
+var tableRotated = false;
+function rotatePlayers(){
+  try{getAC().resume();}catch(e){}
+  tableRotated = !tableRotated;
+  document.body.style.transform = tableRotated ? 'rotate(180deg)' : '';
+  beep(tableRotated ? 770 : 550, 0.08, 0.08);
+}
+
+// ── Init ──────────────────────────────────────────────────────
+['p1','p2'].forEach(function(pid){
+  Object.keys(MAX).forEach(function(key){
+    buildPips(pid,key);
+    updatePips(pid,key);
+    renderMode(pid,key);
+  });
+  renderKO(pid);
+});
+document.querySelectorAll('.stat').forEach(function(cell){
+  if(cell.dataset.pid) wireCell(cell);
+});
+wireKO(document.getElementById('ko-p1'),'p1');
+wireKO(document.getElementById('ko-p2'),'p2');
+</script>
+</body>
+</html>
